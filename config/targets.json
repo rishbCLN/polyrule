@@ -1,0 +1,57 @@
+{
+  "cursor": {
+    "name": "Cursor",
+    "output": ".cursor/rules/polyrule.mdc",
+    "format": "mdc"
+  },
+  "cursor-legacy": {
+    "name": "Cursor (legacy .cursorrules)",
+    "output": ".cursorrules",
+    "format": "markdown"
+  },
+  "claude": {
+    "name": "Claude Code",
+    "output": "CLAUDE.md",
+    "format": "markdown"
+  },
+  "copilot": {
+    "name": "GitHub Copilot",
+    "output": ".github/copilot-instructions.md",
+    "format": "markdown"
+  },
+  "windsurf": {
+    "name": "Windsurf",
+    "output": ".windsurfrules",
+    "format": "markdown"
+  },
+  "cline": {
+    "name": "Cline",
+    "output": ".clinerules",
+    "format": "markdown"
+  },
+  "codex": {
+    "name": "OpenAI Codex / AGENTS.md",
+    "output": "AGENTS.md",
+    "format": "markdown"
+  },
+  "continue": {
+    "name": "Continue",
+    "output": ".continue/rules/polyrule.md",
+    "format": "markdown"
+  },
+  "zed": {
+    "name": "Zed",
+    "output": ".rules",
+    "format": "markdown"
+  },
+  "aider": {
+    "name": "Aider",
+    "output": "CONVENTIONS.md",
+    "format": "markdown"
+  },
+  "gemini": {
+    "name": "Gemini CLI",
+    "output": "GEMINI.md",
+    "format": "markdown"
+  }
+}

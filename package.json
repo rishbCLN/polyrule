@@ -1,0 +1,35 @@
+{
+  "name": "polyrule",
+  "version": "0.1.0",
+  "description": "Write your AI coding rules once. Compile them for every assistant (Cursor, Claude Code, Copilot, Windsurf, Cline, and more).",
+  "type": "module",
+  "bin": {
+    "polyrule": "./compile.mjs"
+  },
+  "scripts": {
+    "compile": "node compile.mjs",
+    "list": "node compile.mjs --list"
+  },
+  "keywords": [
+    "ai",
+    "cursor",
+    "cursorrules",
+    "claude",
+    "copilot",
+    "windsurf",
+    "cline",
+    "coding-assistant",
+    "llm",
+    "prompt-engineering",
+    "developer-tools"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "compile.mjs",
+    "rules",
+    "config"
+  ]
+}

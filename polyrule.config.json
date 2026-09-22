@@ -1,0 +1,4 @@
+{
+  "preset": "nextjs-fullstack",
+  "targets": ["cursor", "claude", "copilot"]
+}

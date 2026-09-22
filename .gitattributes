@@ -1,0 +1,8 @@
+# Normalize line endings to LF for all text files.
+* text=auto eol=lf
+
+# Explicitly treat these as text.
+*.md text eol=lf
+*.mjs text eol=lf
+*.json text eol=lf
+*.yml text eol=lf

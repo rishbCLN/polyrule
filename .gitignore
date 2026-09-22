@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+
+# Compiled rule outputs (uncomment if you compile into this repo for testing)
+# .cursorrules
+# .cursor/
+# CLAUDE.md
+# AGENTS.md
+# GEMINI.md
+# CONVENTIONS.md
+# .windsurfrules
+# .clinerules
+# .continue/
+# .github/copilot-instructions.md

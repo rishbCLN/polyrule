@@ -1,0 +1,137 @@
+{
+  "base": {
+    "description": "Universal engineering baseline for any project.",
+    "rules": [
+      "core/clean-code",
+      "core/security-baseline",
+      "core/git-commits",
+      "core/testing",
+      "practices/error-handling"
+    ]
+  },
+  "nextjs-fullstack": {
+    "description": "Next.js App Router + TypeScript + Tailwind full-stack app.",
+    "extends": "base",
+    "rules": [
+      "languages/typescript",
+      "frameworks/react",
+      "frameworks/nextjs",
+      "frameworks/tailwind",
+      "practices/accessibility",
+      "practices/performance"
+    ]
+  },
+  "react-frontend": {
+    "description": "React + TypeScript + Tailwind frontend.",
+    "extends": "base",
+    "rules": [
+      "languages/typescript",
+      "frameworks/react",
+      "frameworks/tailwind",
+      "practices/accessibility",
+      "practices/performance"
+    ]
+  },
+  "vue-frontend": {
+    "description": "Vue 3 + TypeScript + Tailwind frontend.",
+    "extends": "base",
+    "rules": [
+      "languages/typescript",
+      "frameworks/vue",
+      "frameworks/tailwind",
+      "practices/accessibility",
+      "practices/performance"
+    ]
+  },
+  "svelte-frontend": {
+    "description": "SvelteKit + TypeScript + Tailwind frontend.",
+    "extends": "base",
+    "rules": [
+      "languages/typescript",
+      "frameworks/svelte",
+      "frameworks/tailwind",
+      "practices/accessibility",
+      "practices/performance"
+    ]
+  },
+  "python-api": {
+    "description": "FastAPI backend service in Python.",
+    "extends": "base",
+    "rules": [
+      "languages/python",
+      "languages/sql",
+      "frameworks/fastapi",
+      "practices/api-design",
+      "practices/logging",
+      "practices/performance"
+    ]
+  },
+  "django-api": {
+    "description": "Django (or DRF) backend service.",
+    "extends": "base",
+    "rules": [
+      "languages/python",
+      "languages/sql",
+      "frameworks/django",
+      "practices/api-design",
+      "practices/logging",
+      "practices/performance"
+    ]
+  },
+  "node-api": {
+    "description": "Express + TypeScript backend service.",
+    "extends": "base",
+    "rules": [
+      "languages/typescript",
+      "languages/sql",
+      "frameworks/express",
+      "practices/api-design",
+      "practices/logging",
+      "practices/performance"
+    ]
+  },
+  "rust-service": {
+    "description": "Rust backend or systems service.",
+    "extends": "base",
+    "rules": [
+      "languages/rust",
+      "practices/api-design",
+      "practices/logging",
+      "practices/performance"
+    ]
+  },
+  "go-service": {
+    "description": "Go backend or microservice.",
+    "extends": "base",
+    "rules": [
+      "languages/go",
+      "languages/sql",
+      "practices/api-design",
+      "practices/logging",
+      "practices/performance"
+    ]
+  },
+  "java-spring": {
+    "description": "Spring Boot backend service in Java.",
+    "extends": "base",
+    "rules": [
+      "languages/java",
+      "languages/sql",
+      "frameworks/spring-boot",
+      "practices/api-design",
+      "practices/logging",
+      "practices/performance"
+    ]
+  },
+  "dotnet-api": {
+    "description": "ASP.NET Core backend service in C#.",
+    "extends": "base",
+    "rules": [
+      "languages/csharp",
+      "languages/sql",
+      "practices/api-design",
+      "practices/logging",
+      "practices/performance"
+    ]
+  }
+}

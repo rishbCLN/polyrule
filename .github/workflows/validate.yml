@@ -1,0 +1,26 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Validate rules, presets, and targets
+        run: node compile.mjs --check
+      - name: Smoke-compile every preset (dry run)
+        shell: bash
+        run: |
+          set -euo pipefail
+          presets=$(node -e "const p=require('./config/presets.json');console.log(Object.keys(p).join(' '))")
+          for preset in $presets; do
+            echo "--- $preset ---"
+            node compile.mjs --preset "$preset" --target all --dry-run
+          done
