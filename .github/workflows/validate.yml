@@ -8,18 +8,23 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ matrix.node-version }}
       - name: Validate rules, presets, and targets
         run: node compile.mjs --check
+      - name: Run test suite
+        run: node --test
       - name: Smoke-compile every preset (dry run)
         shell: bash
         run: |
           set -euo pipefail
-          presets=$(node -e "const p=require('./config/presets.json');console.log(Object.keys(p).join(' '))")
+          presets=$(node --input-type=module -e "import fs from 'node:fs'; console.log(Object.keys(JSON.parse(fs.readFileSync('config/presets.json','utf8'))).join(' '))")
           for preset in $presets; do
             echo "--- $preset ---"
             node compile.mjs --preset "$preset" --target all --dry-run

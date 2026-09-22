@@ -7,7 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
-const RULES_DIR = path.join(ROOT, "rules");
+const CATALOG_DIR = path.join(ROOT, "rules");
 const TARGETS = readJson(path.join(ROOT, "config", "targets.json"));
 const PRESETS = readJson(path.join(ROOT, "config", "presets.json"));
 
@@ -48,7 +48,7 @@ function list(val) {
 // ---------- Frontmatter parser (minimal, no deps) ----------
 
 function parseRuleFile(filePath) {
-  const raw = fs.readFileSync(filePath, "utf8");
+  const raw = fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
   const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(raw);
   if (!match) {
     return { meta: {}, body: raw.trim() };
@@ -119,15 +119,44 @@ function dedupe(items) {
   return out;
 }
 
-function loadRules(ruleIds) {
+// Find a rule file by id across the given directories.
+// Earlier directories win, so project-local rules override the catalog.
+function findRuleFile(id, dirs) {
+  for (const dir of dirs) {
+    const filePath = path.join(dir, `${id}.md`);
+    if (fs.existsSync(filePath)) return filePath;
+  }
+  return null;
+}
+
+function loadRules(ruleIds, dirs) {
   return ruleIds.map((id) => {
-    const filePath = path.join(RULES_DIR, `${id}.md`);
-    if (!fs.existsSync(filePath)) {
-      throw new Error(`Rule not found: "${id}" (looked in ${filePath})`);
+    const filePath = findRuleFile(id, dirs);
+    if (!filePath) {
+      throw new Error(
+        `Rule not found: "${id}" (searched: ${dirs.join(", ")})`
+      );
     }
     const parsed = parseRuleFile(filePath);
-    return { id, ...parsed };
+    return { id, filePath, ...parsed };
   });
+}
+
+// List every rule id available across the given directories (deduped, sorted).
+function allRuleIds(dirs) {
+  const ids = new Set();
+  const walk = (dir, prefix) => {
+    if (!fs.existsSync(dir)) return;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        walk(path.join(dir, entry.name), `${prefix}${entry.name}/`);
+      } else if (entry.name.endsWith(".md")) {
+        ids.add(`${prefix}${entry.name.replace(/\.md$/, "")}`);
+      }
+    }
+  };
+  for (const dir of dirs) walk(dir, "");
+  return [...ids].sort();
 }
 
 // ---------- Formatters ----------
@@ -148,14 +177,16 @@ function formatMdc(rules) {
   const body = rules
     .map((r) => `## ${r.meta.title || r.id}\n\n${r.body}`)
     .join("\n\n");
-  const fm = [
-    "---",
-    "description: Project rules compiled by Polyrule",
-    `globs: ${globs.join(", ")}`,
-    "alwaysApply: true",
-    "---",
-  ].join("\n");
-  return `${fm}\n\n${body}\n`;
+  // Cursor: when globs are present, scope with them (alwaysApply false).
+  // With no globs, apply the rules to the whole project.
+  const fm = ["---", "description: Project rules compiled by Polyrule"];
+  if (globs.length) {
+    fm.push(`globs: ${globs.join(", ")}`, "alwaysApply: false");
+  } else {
+    fm.push("alwaysApply: true");
+  }
+  fm.push("---");
+  return `${fm.join("\n")}\n\n${body}\n`;
 }
 
 function render(format, rules) {
@@ -168,9 +199,61 @@ function render(format, rules) {
   }
 }
 
+// ---------- Config resolution ----------
+
+// Resolve rule directories: project-local (override) first, catalog last.
+function resolveRuleDirs(args, cfg, configDir) {
+  const dirs = [];
+  if (typeof args["rules-dir"] === "string") {
+    dirs.push(path.resolve(args["rules-dir"]));
+  }
+  if (cfg && cfg.rulesDir) {
+    // Config-relative so it is portable regardless of where you run from.
+    dirs.push(path.resolve(configDir, cfg.rulesDir));
+  }
+  dirs.push(CATALOG_DIR);
+  return dedupe(dirs);
+}
+
+function loadConfigFile(args) {
+  const configPath = path.resolve(
+    typeof args.config === "string" ? args.config : "polyrule.config.json"
+  );
+  if (fs.existsSync(configPath)) {
+    return { cfg: readJson(configPath), configDir: path.dirname(configPath) };
+  }
+  return { cfg: null, configDir: process.cwd() };
+}
+
+function resolveConfig(args) {
+  const { cfg, configDir } = loadConfigFile(args);
+  const dirs = resolveRuleDirs(args, cfg, configDir);
+
+  let ruleIds = [];
+  let targets = list(args.target);
+
+  // Precedence: explicit CLI rules/preset > config file.
+  if (args.rules || args.preset) {
+    if (args.preset) ruleIds = ruleIds.concat(resolvePreset(String(args.preset)));
+    if (args.rules) ruleIds = ruleIds.concat(list(args.rules));
+  } else if (cfg) {
+    if (cfg.preset) ruleIds = ruleIds.concat(resolvePreset(cfg.preset));
+    if (cfg.rules) ruleIds = ruleIds.concat(cfg.rules);
+    if (!targets.length && cfg.targets) targets = cfg.targets;
+  }
+
+  // "all" anywhere in the target list means every target.
+  if (!targets.length || targets.includes("all")) {
+    targets = Object.keys(TARGETS);
+  }
+
+  return { ruleIds: dedupe(ruleIds), targets, dirs };
+}
+
 // ---------- Commands ----------
 
-function printList() {
+function printList(dirs) {
+  const catalogIds = new Set(allRuleIds([CATALOG_DIR]));
   console.log("\nPresets:");
   for (const [name, p] of Object.entries(PRESETS)) {
     console.log(`  ${name.padEnd(18)} ${p.description || ""}`);
@@ -180,36 +263,23 @@ function printList() {
     console.log(`  ${name.padEnd(18)} ${t.name} -> ${t.output}`);
   }
   console.log("\nRule modules:");
-  for (const id of allRuleIds()) {
-    console.log(`  ${id}`);
+  for (const id of allRuleIds(dirs)) {
+    const tag = catalogIds.has(id) ? "" : "  (local)";
+    console.log(`  ${id}${tag}`);
   }
   console.log("");
 }
 
-function allRuleIds() {
-  const ids = [];
-  const walk = (dir, prefix) => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (entry.isDirectory()) {
-        walk(path.join(dir, entry.name), `${prefix}${entry.name}/`);
-      } else if (entry.name.endsWith(".md")) {
-        ids.push(`${prefix}${entry.name.replace(/\.md$/, "")}`);
-      }
-    }
-  };
-  walk(RULES_DIR, "");
-  return ids.sort();
-}
-
 // Validate the whole catalog: rule frontmatter, presets, and targets.
 // Returns the number of problems found (0 = healthy).
-function runCheck() {
+function runCheck(dirs) {
   const problems = [];
-  const ruleIds = allRuleIds();
+  const ruleIds = allRuleIds(dirs);
 
   // Rules: required frontmatter + parseable body.
   for (const id of ruleIds) {
-    const { meta, body } = parseRuleFile(path.join(RULES_DIR, `${id}.md`));
+    const filePath = findRuleFile(id, dirs);
+    const { meta, body } = parseRuleFile(filePath);
     if (!meta.id) problems.push(`rule "${id}": missing frontmatter "id"`);
     if (meta.id && meta.id !== path.basename(id))
       problems.push(`rule "${id}": frontmatter id "${meta.id}" does not match filename`);
@@ -230,13 +300,21 @@ function runCheck() {
     }
   }
 
-  // Targets: required fields + known format.
+  // Targets: required fields + known format + no output collisions.
   const formats = new Set(["markdown", "mdc"]);
+  const outputs = new Map();
   for (const [name, t] of Object.entries(TARGETS)) {
     if (!t.name) problems.push(`target "${name}": missing "name"`);
     if (!t.output) problems.push(`target "${name}": missing "output"`);
     if (!formats.has(t.format))
       problems.push(`target "${name}": unknown format "${t.format}"`);
+    if (t.output) {
+      if (outputs.has(t.output))
+        problems.push(
+          `target "${name}": output "${t.output}" collides with "${outputs.get(t.output)}"`
+        );
+      else outputs.set(t.output, name);
+    }
   }
 
   if (problems.length) {
@@ -259,10 +337,12 @@ Usage:
 Options:
   --preset <name>      Use a named preset (see --list).
   --rules <a,b,c>      Comma-separated rule modules (e.g. core/security-baseline,languages/python).
+  --rules-dir <dir>    Extra rules directory searched before the built-in catalog (overrides by id).
   --target <t,t|all>   One or more targets, or "all". Default: all.
   --out <dir>          Output directory. Default: current directory.
   --config <file>      Read options from a JSON config. Default: polyrule.config.json (if present).
   --dry-run            Print what would be written without touching the filesystem.
+  --verify             Check that on-disk output matches what would be generated. Non-zero if stale.
   --check              Validate all rules, presets, and targets (exits non-zero on problems).
   --list               List presets, targets, and rule modules.
   --help               Show this help.
@@ -270,34 +350,18 @@ Options:
 Examples:
   node compile.mjs --preset nextjs-fullstack --target cursor,claude
   node compile.mjs --rules core/security-baseline,languages/go --target all
-  node compile.mjs                # uses ./polyrule.config.json
+  node compile.mjs --verify        # CI/pre-commit: fail if generated files drifted
+  node compile.mjs                 # uses ./polyrule.config.json
 `;
 
-function resolveConfig(args) {
-  // Precedence: explicit CLI rules/preset > config file.
-  let ruleIds = [];
-  let targets = list(args.target);
-
-  if (args.rules || args.preset) {
-    if (args.preset) ruleIds = ruleIds.concat(resolvePreset(String(args.preset)));
-    if (args.rules) ruleIds = ruleIds.concat(list(args.rules));
-  } else {
-    const configPath = path.resolve(
-      typeof args.config === "string" ? args.config : "polyrule.config.json"
-    );
-    if (fs.existsSync(configPath)) {
-      const cfg = readJson(configPath);
-      if (cfg.preset) ruleIds = ruleIds.concat(resolvePreset(cfg.preset));
-      if (cfg.rules) ruleIds = ruleIds.concat(cfg.rules);
-      if (!targets.length && cfg.targets) targets = cfg.targets;
-    }
+function printResolved(rules, dirs) {
+  const catalogIds = new Set(allRuleIds([CATALOG_DIR]));
+  console.log("Modules:");
+  for (const r of rules) {
+    const tag = catalogIds.has(r.id) ? "" : " (local)";
+    console.log(`  - ${r.id}${tag}`);
   }
-
-  if (!targets.length || (targets.length === 1 && targets[0] === "all")) {
-    targets = Object.keys(TARGETS);
-  }
-
-  return { ruleIds: dedupe(ruleIds), targets };
+  console.log("");
 }
 
 function main() {
@@ -307,15 +371,22 @@ function main() {
     console.log(HELP);
     return;
   }
+
+  // These commands still honor --rules-dir / config rulesDir.
+  const preConfig = (() => {
+    const { cfg, configDir } = loadConfigFile(args);
+    return resolveRuleDirs(args, cfg, configDir);
+  })();
+
   if (args.list) {
-    printList();
+    printList(preConfig);
     return;
   }
   if (args.check) {
-    process.exit(runCheck() === 0 ? 0 : 1);
+    process.exit(runCheck(preConfig) === 0 ? 0 : 1);
   }
 
-  const { ruleIds, targets } = resolveConfig(args);
+  const { ruleIds, targets, dirs } = resolveConfig(args);
 
   if (!ruleIds.length) {
     console.error(
@@ -330,15 +401,51 @@ function main() {
     process.exit(1);
   }
 
-  const rules = loadRules(ruleIds);
+  const rules = loadRules(ruleIds, dirs);
   const outDir = path.resolve(typeof args.out === "string" ? args.out : ".");
   const dryRun = Boolean(args["dry-run"]);
+  const verify = Boolean(args.verify);
 
+  // ----- verify mode: compare on-disk output to freshly rendered output -----
+  if (verify) {
+    console.log(
+      `Polyrule verify: ${rules.length} module(s) -> ${targets.length} target(s)\n`
+    );
+    printResolved(rules, dirs);
+    const stale = [];
+    for (const targetKey of targets) {
+      const target = TARGETS[targetKey];
+      const expected = render(target.format, rules);
+      const dest = path.join(outDir, target.output);
+      let status;
+      if (!fs.existsSync(dest)) {
+        status = "MISSING";
+        stale.push(targetKey);
+      } else if (normalize(fs.readFileSync(dest, "utf8")) !== normalize(expected)) {
+        status = "STALE";
+        stale.push(targetKey);
+      } else {
+        status = "ok";
+      }
+      console.log(`  ${status.padEnd(8)} ${target.name.padEnd(28)} ${target.output}`);
+    }
+    if (stale.length) {
+      console.error(
+        `\n${stale.length} file(s) out of date. Run without --verify to regenerate.`
+      );
+      process.exit(1);
+    }
+    console.log("\nAll generated files are up to date.");
+    return;
+  }
+
+  // ----- compile / dry-run -----
   console.log(
     `Polyrule: ${rules.length} rule module(s) -> ${targets.length} target(s)${
       dryRun ? " (dry run)" : ""
     }\n`
   );
+  if (dryRun) printResolved(rules, dirs);
 
   for (const targetKey of targets) {
     const target = TARGETS[targetKey];
@@ -358,9 +465,37 @@ function main() {
   console.log("\nDone.");
 }
 
-try {
-  main();
-} catch (err) {
-  console.error(`Error: ${err.message}`);
-  process.exit(1);
+// Normalize line endings so verify does not false-positive on CRLF vs LF.
+function normalize(s) {
+  return s.replace(/\r\n/g, "\n");
 }
+
+// Only run the CLI when executed directly, not when imported by tests.
+const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : "";
+if (invokedPath === fileURLToPath(import.meta.url)) {
+  try {
+    main();
+  } catch (err) {
+    console.error(`Error: ${err.message}`);
+    process.exit(1);
+  }
+}
+
+// Exported for the test suite (import side-effect free when run as a module).
+export {
+  parseArgs,
+  parseFrontmatter,
+  parseRuleFile,
+  resolvePreset,
+  dedupe,
+  formatMarkdown,
+  formatMdc,
+  render,
+  allRuleIds,
+  findRuleFile,
+  loadRules,
+  normalize,
+  CATALOG_DIR,
+  TARGETS,
+  PRESETS,
+};

@@ -8,7 +8,10 @@
   },
   "scripts": {
     "compile": "node compile.mjs",
-    "list": "node compile.mjs --list"
+    "list": "node compile.mjs --list",
+    "check": "node compile.mjs --check",
+    "verify": "node compile.mjs --verify",
+    "test": "node --test"
   },
   "keywords": [
     "ai",

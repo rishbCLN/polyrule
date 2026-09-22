@@ -55,6 +55,9 @@ node compile.mjs --preset react-frontend --dry-run
 
 # Validate the whole catalog (used in CI)
 node compile.mjs --check
+
+# Fail if any generated file has drifted from the rules (CI / pre-commit)
+node compile.mjs --verify
 ```
 
 To use it in your own project, either run the compiler with `--out /path/to/your/project`, or copy `rules/`, `config/`, and `compile.mjs` in and commit a `polyrule.config.json`:
@@ -67,6 +70,43 @@ To use it in your own project, either run the compiler with `--out /path/to/your
 ```
 
 Then just run `node compile.mjs` — it reads the config automatically. Commit the generated files so your whole team shares the same guidance.
+
+## Bring your own rules
+
+You don't have to fork the catalog to add house rules. Point Polyrule at a local rules directory and it's searched **before** the built-in catalog, so a local module with the same id overrides the shipped one, and brand-new modules just work.
+
+```
+your-project/
+  ai-rules/
+    local/
+      company-conventions.md   # id: local/company-conventions
+      core/
+        clean-code.md          # overrides the built-in core/clean-code
+  polyrule.config.json
+```
+
+```json
+{
+  "preset": "nextjs-fullstack",
+  "rules": ["local/company-conventions"],
+  "rulesDir": "./ai-rules",
+  "targets": ["cursor", "claude", "copilot"]
+}
+```
+
+`rulesDir` is resolved relative to the config file, so it's portable. On the CLI the equivalent is `--rules-dir ./ai-rules`. Run `node compile.mjs --list` and local modules are tagged `(local)`.
+
+## Keeping generated files in sync
+
+The generated files are just artifacts — they go stale the moment someone edits a rule. `--verify` renders everything in memory and diffs it against what's on disk, exiting non-zero if anything is `STALE` or `MISSING`. Wire it into CI (already included) or a pre-commit hook:
+
+```bash
+# .git/hooks/pre-commit
+node compile.mjs --verify || {
+  echo "AI rule files are out of date. Run: node compile.mjs"
+  exit 1
+}
+```
 
 ## Supported assistants
 
@@ -143,7 +183,16 @@ Drop it anywhere under `rules/`, reference it by path (minus `.md`) in a preset 
 
 ## How it works
 
-`compile.mjs` reads your selected modules, parses their frontmatter, resolves any preset `extends` chains, de-duplicates, and renders each target in its native format (Markdown for most, `.mdc` with unioned globs for Cursor). It's a single dependency-free Node file (~360 lines). Read it — there's no magic.
+`compile.mjs` reads your selected modules (local dirs first, then the catalog), parses their frontmatter, resolves any preset `extends` chains, de-duplicates, and renders each target in its native format (Markdown for most, `.mdc` with unioned globs for Cursor). It's a single dependency-free Node file. Read it — there's no magic.
+
+## Development
+
+```bash
+node --test            # run the test suite (Node built-in, no deps)
+node compile.mjs --check   # validate rules, presets, and targets
+```
+
+CI runs `--check`, the test suite, and a dry-run of every preset on Node 18/20/22.
 
 ## Contributing
 
