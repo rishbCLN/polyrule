@@ -133,6 +133,37 @@ test("--check exits 0 on a healthy catalog", () => {
   assert.match(r.stdout, /check: OK/);
 });
 
+test("--version prints the version and writes nothing", () => {
+  const dir = tmpDir();
+  try {
+    const r = run(["--version"], { cwd: dir });
+    assert.equal(r.code, 0, r.stderr);
+    assert.match(r.stdout, /^polyrule \d+\.\d+\.\d+/);
+    // A bare version query must not trigger a compile in the cwd.
+    assert.deepEqual(fs.readdirSync(dir), []);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("-v is an alias for --version", () => {
+  const r = run(["-v"]);
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /^polyrule \d+\.\d+\.\d+/);
+});
+
+test("an unknown flag fails fast and writes nothing", () => {
+  const dir = tmpDir();
+  try {
+    const r = run(["--nope"], { cwd: dir });
+    assert.equal(r.code, 1);
+    assert.match(r.stderr, /Unknown option: --nope/);
+    assert.deepEqual(fs.readdirSync(dir), []);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("--target accepts 'all' mixed with named targets", () => {
   const r = run(["--preset", "base", "--target", "cursor,all", "--dry-run"]);
   assert.equal(r.code, 0, r.stderr);

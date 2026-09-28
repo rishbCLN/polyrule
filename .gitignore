@@ -11,6 +11,9 @@ Thumbs.db
 .idea/
 *.swp
 
+# Internal orchestration notes (not for the public repo)
+STAR-TOOLS.md
+
 # Compiled rule outputs (uncomment if you compile into this repo for testing)
 # .cursorrules
 # .cursor/

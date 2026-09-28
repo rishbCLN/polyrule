@@ -27,6 +27,7 @@
     "developer-tools"
   ],
   "license": "MIT",
+  "author": "rishbCLN",
   "engines": {
     "node": ">=18"
   },
@@ -34,5 +35,13 @@
     "compile.mjs",
     "rules",
     "config"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rishbCLN/polyrule.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rishbCLN/polyrule/issues"
+  },
+  "homepage": "https://github.com/rishbCLN/polyrule#readme"
 }

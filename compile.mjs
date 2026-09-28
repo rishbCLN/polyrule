@@ -15,13 +15,42 @@ function readJson(p) {
   return JSON.parse(fs.readFileSync(p, "utf8"));
 }
 
+function getVersion() {
+  try {
+    return readJson(path.join(ROOT, "package.json")).version || "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+// Flags Polyrule understands. Anything else is rejected so an unknown option
+// never silently falls through to a full compile.
+const KNOWN_FLAGS = new Set([
+  "preset",
+  "rules",
+  "rules-dir",
+  "target",
+  "out",
+  "config",
+  "dry-run",
+  "verify",
+  "check",
+  "list",
+  "help",
+  "version",
+]);
+
 // ---------- CLI ----------
 
 function parseArgs(argv) {
   const args = { _: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a.startsWith("--")) {
+    if (a === "-v" || a === "-V") {
+      args.version = true;
+    } else if (a === "-h") {
+      args.help = true;
+    } else if (a.startsWith("--")) {
       const key = a.slice(2);
       const next = argv[i + 1];
       if (next === undefined || next.startsWith("--")) {
@@ -346,6 +375,7 @@ Options:
   --check              Validate all rules, presets, and targets (exits non-zero on problems).
   --list               List presets, targets, and rule modules.
   --help               Show this help.
+  --version            Print the Polyrule version.
 
 Examples:
   node compile.mjs --preset nextjs-fullstack --target cursor,claude
@@ -366,6 +396,19 @@ function printResolved(rules, dirs) {
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
+
+  const unknown = Object.keys(args).filter(
+    (k) => k !== "_" && !KNOWN_FLAGS.has(k)
+  );
+  if (unknown.length) {
+    console.error(`Unknown option: --${unknown[0]}. Run --help.`);
+    process.exit(1);
+  }
+
+  if (args.version) {
+    console.log(`polyrule ${getVersion()}`);
+    return;
+  }
 
   if (args.help) {
     console.log(HELP);

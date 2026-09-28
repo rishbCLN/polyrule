@@ -1,6 +1,8 @@
 # Polyrule
 
-[![validate](https://github.com/YOUR_USERNAME/polyrule/actions/workflows/validate.yml/badge.svg)](https://github.com/YOUR_USERNAME/polyrule/actions/workflows/validate.yml)
+[![validate](https://github.com/rishbCLN/polyrule/actions/workflows/validate.yml/badge.svg)](https://github.com/rishbCLN/polyrule/actions/workflows/validate.yml)
+[![npm](https://img.shields.io/npm/v/polyrule.svg)](https://www.npmjs.com/package/polyrule)
+[![node](https://img.shields.io/node/v/polyrule.svg)](https://www.npmjs.com/package/polyrule)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **Write your AI coding rules once. Compile them for every assistant.**
@@ -37,21 +39,37 @@ No dependencies. No build step. No account. Just Node 18+ and a folder of Markdo
 
 ## Quick start
 
-```bash
-git clone https://github.com/YOUR_USERNAME/polyrule.git
-cd polyrule
+Run it straight from npm — no install, no clone:
 
+```bash
 # See everything available
-node compile.mjs --list
+npx polyrule --list
+
+# Compile a preset to specific assistants
+npx polyrule --preset python-api --target cursor,claude
+
+# Or hand-pick modules
+npx polyrule --rules core/security-baseline,languages/go --target all
+
+# Preview without writing files
+npx polyrule --preset react-frontend --dry-run
+```
+
+Or install it globally so the `polyrule` command is always on your PATH:
+
+```bash
+npm install -g polyrule
+polyrule --list
+```
+
+Prefer to hack on the catalog directly? Clone it and run the script:
+
+```bash
+git clone https://github.com/rishbCLN/polyrule.git
+cd polyrule
 
 # Compile a preset to specific assistants
 node compile.mjs --preset python-api --target cursor,claude
-
-# Or hand-pick modules
-node compile.mjs --rules core/security-baseline,languages/go --target all
-
-# Preview without writing files
-node compile.mjs --preset react-frontend --dry-run
 
 # Validate the whole catalog (used in CI)
 node compile.mjs --check
