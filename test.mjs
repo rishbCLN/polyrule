@@ -60,6 +60,11 @@ test("parseFrontmatter reads scalars, arrays, and quotes", () => {
   assert.deepEqual(meta.globs, ["**/*.ts", "**/*.tsx"]);
 });
 
+test("parseFrontmatter keeps commas inside quoted array elements", () => {
+  const meta = parseFrontmatter('globs: ["src/**/*.{ts,tsx}", "*.md"]');
+  assert.deepEqual(meta.globs, ["src/**/*.{ts,tsx}", "*.md"]);
+});
+
 // ---------- unit: dedupe ----------
 
 test("dedupe preserves first-seen order", () => {
@@ -161,6 +166,57 @@ test("an unknown flag fails fast and writes nothing", () => {
     assert.deepEqual(fs.readdirSync(dir), []);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("an unknown short flag fails fast and writes nothing", () => {
+  const dir = tmpDir();
+  try {
+    // -x must not be swallowed as --preset's value or slip through as a
+    // positional; it has to trip the unknown-option guard like --nope does.
+    const r = run(["--preset", "base", "-x", "--target", "claude"], { cwd: dir });
+    assert.equal(r.code, 1, r.stdout);
+    assert.match(r.stderr, /Unknown option/);
+    assert.deepEqual(fs.readdirSync(dir), []);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI --rules still honors targets from the config file", () => {
+  const proj = tmpDir();
+  try {
+    fs.writeFileSync(
+      path.join(proj, "polyrule.config.json"),
+      JSON.stringify({ rules: ["core/security-baseline"], targets: ["claude"] })
+    );
+    // Selecting rules on the CLI must not discard config targets and fan out
+    // to every target; only CLAUDE.md should be written.
+    const r = run(["--rules", "core/security-baseline"], { cwd: proj });
+    assert.equal(r.code, 0, r.stderr);
+    const written = fs
+      .readdirSync(proj)
+      .filter((f) => f !== "polyrule.config.json");
+    assert.deepEqual(written, ["CLAUDE.md"]);
+  } finally {
+    fs.rmSync(proj, { recursive: true, force: true });
+  }
+});
+
+test("a rule id cannot escape the rules directory", () => {
+  const proj = tmpDir();
+  try {
+    // Plant a file one level above the rules dir and try to reach it with ../.
+    fs.writeFileSync(
+      path.join(proj, "secret.md"),
+      "---\nid: secret\ntitle: LEAK\n---\n\nTOP SECRET\n"
+    );
+    const rulesDir = path.join(proj, "rules");
+    fs.mkdirSync(rulesDir, { recursive: true });
+    const found = findRuleFile("../secret", [rulesDir]);
+    assert.equal(found, null, "traversal id must not resolve to a file");
+  } finally {
+    fs.rmSync(proj, { recursive: true, force: true });
   }
 });
 

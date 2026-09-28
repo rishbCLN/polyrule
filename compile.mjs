@@ -53,12 +53,19 @@ function parseArgs(argv) {
     } else if (a.startsWith("--")) {
       const key = a.slice(2);
       const next = argv[i + 1];
-      if (next === undefined || next.startsWith("--")) {
+      // A value that itself begins with "-" is treated as the next flag, not
+      // as this flag's argument, so short flags are never swallowed as values.
+      if (next === undefined || next.startsWith("-")) {
         args[key] = true;
       } else {
         args[key] = next;
         i++;
       }
+    } else if (a.startsWith("-") && a.length > 1) {
+      // Unknown short flag (anything past -v/-V/-h): record it under its
+      // stripped name so the KNOWN_FLAGS guard rejects it, instead of letting
+      // it fall through as a positional and silently trigger a full compile.
+      args[a.slice(1)] = true;
     } else {
       args._.push(a);
     }
@@ -95,9 +102,7 @@ function parseFrontmatter(block) {
     const key = m[1];
     let value = m[2].trim();
     if (value.startsWith("[") && value.endsWith("]")) {
-      meta[key] = value
-        .slice(1, -1)
-        .split(",")
+      meta[key] = splitList(value.slice(1, -1))
         .map((s) => unquote(s.trim()))
         .filter(Boolean);
     } else {
@@ -105,6 +110,30 @@ function parseFrontmatter(block) {
     }
   }
   return meta;
+}
+
+// Split a comma-separated inline array, ignoring commas that sit inside
+// single or double quotes (e.g. globs like "src/**/*.{ts,tsx}").
+function splitList(inner) {
+  const out = [];
+  let buf = "";
+  let quote = null;
+  for (const ch of inner) {
+    if (quote) {
+      buf += ch;
+      if (ch === quote) quote = null;
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+      buf += ch;
+    } else if (ch === ",") {
+      out.push(buf);
+      buf = "";
+    } else {
+      buf += ch;
+    }
+  }
+  out.push(buf);
+  return out;
 }
 
 function unquote(s) {
@@ -150,9 +179,15 @@ function dedupe(items) {
 
 // Find a rule file by id across the given directories.
 // Earlier directories win, so project-local rules override the catalog.
+// Rule ids are confined to their directory: a resolved path that escapes the
+// search dir (via "../", an absolute path, etc.) is rejected so a crafted id
+// cannot read arbitrary files outside the rules tree.
 function findRuleFile(id, dirs) {
   for (const dir of dirs) {
-    const filePath = path.join(dir, `${id}.md`);
+    const base = path.resolve(dir);
+    const filePath = path.resolve(base, `${id}.md`);
+    const rel = path.relative(base, filePath);
+    if (rel.startsWith("..") || path.isAbsolute(rel)) continue;
     if (fs.existsSync(filePath)) return filePath;
   }
   return null;
@@ -268,8 +303,12 @@ function resolveConfig(args) {
   } else if (cfg) {
     if (cfg.preset) ruleIds = ruleIds.concat(resolvePreset(cfg.preset));
     if (cfg.rules) ruleIds = ruleIds.concat(cfg.rules);
-    if (!targets.length && cfg.targets) targets = cfg.targets;
   }
+
+  // Targets fall back to the config independently of where the rules came
+  // from: choosing rules on the CLI must not silently discard config targets
+  // and fan out to every target.
+  if (!targets.length && cfg && cfg.targets) targets = cfg.targets;
 
   // "all" anywhere in the target list means every target.
   if (!targets.length || targets.includes("all")) {
