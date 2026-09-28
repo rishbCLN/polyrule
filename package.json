@@ -4,7 +4,7 @@
   "description": "Write your AI coding rules once. Compile them for every assistant (Cursor, Claude Code, Copilot, Windsurf, Cline, and more).",
   "type": "module",
   "bin": {
-    "polyrule": "./compile.mjs"
+    "polyrule": "compile.mjs"
   },
   "scripts": {
     "compile": "node compile.mjs",
